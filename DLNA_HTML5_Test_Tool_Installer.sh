@@ -185,6 +185,10 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	fi
 fi
 
+if [ ! -e $WPT_RESULTS_DIR/logs ]; then
+	mkdir $WPT_RESULTS_DIR/logs || abort
+	chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
+fi
 if [ ! -e $WPT_RESULTS_DIR/data ]; then
 	mkdir $WPT_RESULTS_DIR/data || abort
 	chown www-data:www-data $WPT_RESULTS_DIR/data || abort
