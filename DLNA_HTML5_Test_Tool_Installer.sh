@@ -153,6 +153,7 @@ else
 	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" $WPT_RESULTS_DIR || abort
 	cd $WPT_RESULTS_DIR
 fi
+
 if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	if [ ! -x /usr/local/bin/composer ]; then 
 		msg "# Installing composer"
@@ -161,22 +162,23 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 		mv composer.phar /usr/local/bin/composer || abort
 	fi
 	
+	if [ ! -e /etc/php5/apache2/conf.d/99-zmq.ini ]; then 
+		msg "# Installing PHP ZQM extension"
+		cd $TEMP_DIR
+		git clone git://github.com/mkoppanen/php-zmq.git || abort
+		cd php-zmq || abort
+		phpize && ./configure || abort
+		make || abort
+		make install || abort
+		echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || abort
+		echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || abort
+	fi
+	
 	cd $WPT_RESULTS_DIR
 	composer install || abort
 
 	if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
 		msg "# Installing Notifier"
-		if [ ! -e /etc/php5/apache2/conf.d/99-zmq.ini ]; then 
-			cd $TEMP_DIR
-			git clone git://github.com/mkoppanen/php-zmq.git || abort
-			cd php-zmq|| abort
-			phpize && ./configure || abort
-			make || abort
-			make install || abort
-			echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || abort
-			echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || abort
-		fi
-		
 		cd $WPT_RESULTS_DIR/Notifier
 		composer install || abort
 	fi
