@@ -172,6 +172,7 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 		make install || abort
 		echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || abort
 		echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || abort
+		service apache2 restart
 	fi
 	
 	cd $WPT_RESULTS_DIR
@@ -184,9 +185,9 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	fi
 fi
 
-if [ ! -e $WPT_RESULTS_DIR/logs ]; then
-	mkdir $WPT_RESULTS_DIR/logs || abort
-	chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
+if [ ! -e $WPT_RESULTS_DIR/data ]; then
+	mkdir $WPT_RESULTS_DIR/data || abort
+	chown www-data:www-data $WPT_RESULTS_DIR/data || abort
 fi
 
 sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" /etc/php5/apache2/php.ini 
@@ -222,7 +223,10 @@ if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results ]; then
 	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || abort
 	sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/wpt-results || abort
 	sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || abort
-	update-rc.d wpt-results defaults || abou
+	# Fix some bugs in older versions of the script
+	sed -i "s:web-platform-test:wpt-results:" /etc/init.d/wpt-results || abort
+	sed -i "s:W3C Web Platform Test:DLNA HTML5 Test Tool:" /etc/init.d/wpt-results || abort
+	update-rc.d wpt-results defaults || about
 	service wpt-results start
 fi
 
