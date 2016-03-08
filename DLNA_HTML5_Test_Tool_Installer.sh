@@ -12,7 +12,7 @@ WPT_RESULTS_DIR="/var/www/html/upload"
 # Some support functions
 function error()
 {
-	echo "$*" >&1
+	echo "$*" >&2
 	cleanup
 	exit 1
 }
@@ -38,8 +38,8 @@ if [ "$(id -u)" != "0" ]; then
     error "This script must be run as root" 
 fi
 
-ifconfig | grep eth0 > /dev/null || error "eth0 not found"
-ifconfig | grep eth1 > /dev/null || error "eth1 not found"
+ifconfig eth0 > /dev/null 2>&1 > /dev/null || error "eth0 not found"
+ifconfig eth1 > /dev/null 2>&1 > /dev/null || error "eth1 not found"
 
 echo -n "Install Version $VERSION? [y/N] "
 read CONFIRM
