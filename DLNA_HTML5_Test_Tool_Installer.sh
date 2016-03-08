@@ -9,10 +9,14 @@ SERVICE_USER="dhtt"
 WPT_DIR="/usr/local/web-platform-test"
 WPT_RESULTS_DIR="/var/www/html/upload"
 
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+NC=$(tput sgr0)
+
 # Some support functions
 function error()
 {
-	echo "$*" >&2
+	echo "${RED}$*${NC}" >&2
 	cleanup
 	exit 1
 }
@@ -27,9 +31,14 @@ function cleanup()
 	rm -fr $TEMP_DIR
 }
 
-echo "DLNA HTML5 Test Tool Installer"
-echo "=============================="
-echo ""
+function msg()
+{
+	echo "${GREEN}$*${NC}"
+}
+
+msg "DLNA HTML5 Test Tool Installer"
+msg "=============================="
+msg ""
 
 
 # Test for pre-requisites 
@@ -47,7 +56,7 @@ if [ "y" != "$CONFIRM" -a "Y" != "$CONFIRM" ]; then
 	abort
 fi
 
-echo "### Installing pre-requisits"
+msg "### Installing pre-requisits"
 apt-get install -y ssh git bind9 isc-dhcp-server python python-html5lib curl apache2 php5 php5-dev libapache2-mod-php5 pkg-config libzmq-dev || abort
 
 adduser --system --quiet $SERVICE_USER
@@ -55,13 +64,13 @@ addgroup --system --quiet $SERVICE_USER
 adduser --quiet $SERVICE_USER $SERVICE_USER
 
 if [ -e $WPT_DIR ]; then 
-	echo "# Updating web-platform-test version $VERSION"
+	msg "# Updating web-platform-test version $VERSION"
 	cd $WPT_DIR
 	git remote set-url origin "https://github.com/${GITHUB_USER}/web-platform-tests.git" || about
 	git fetch origin || abort
 	git checkout $VERSION || abort
 else
-	echo "# Installing web-platform-test version $VERSION"
+	msg "# Installing web-platform-test version $VERSION"
 	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/web-platform-tests.git" $WPT_DIR || about
 	cd $WPT_DIR
 	git submodule update --init --recursive
@@ -71,19 +80,19 @@ cp config.default.json config.json
 sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http://web-platform.test/upload/api.php/"}!' -i config.json
 
 if [ -e $WPT_RESULTS_DIR ]; then 
-	echo "# Updating WPT_Results_Collection_Server version $VERSION"
+	msg "# Updating WPT_Results_Collection_Server version $VERSION"
 	cd $WPT_RESULTS_DIR
 	git remote set-url origin "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" || about
 	git fetch origin || abort
 	git checkout $VERSION || abort
 else
-	echo "# Installing WPT_Results_Collection_Server version $VERSION"
+	msg "# Installing WPT_Results_Collection_Server version $VERSION"
 	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" $WPT_RESULTS_DIR || about
 	cd $WPT_RESULTS_DIR
 fi
 if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	if [ ! -x /usr/local/bin/composer ]; then 
-		echo "# Installing composer"
+		msg "# Installing composer"
 		cd $TEMP_DIR
 		curl -sS https://getcomposer.org/installer | php || about
 		mv composer.phar /usr/local/bin/composer || about
@@ -93,7 +102,7 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	composer install || about
 	
 	if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
-		echo "# Installing Notifier"
+		msg "# Installing Notifier"
 		if [ ! -e /etc/php5/apache2/conf.d/99-zmq.ini ]; then 
 			cd $TEMP_DIR
 			git clone git://github.com/mkoppanen/php-zmq.git || about
@@ -115,11 +124,11 @@ if [ ! -e $WPT_RESULTS_DIR/logs ]; then
 	chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
 fi
 
-sudo sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" /etc/php5/apache2/php.ini 
-sudo sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" /etc/php5/apache2/php.ini 
-sudo sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" /etc/php5/apache2/php.ini 
+sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" /etc/php5/apache2/php.ini 
+sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" /etc/php5/apache2/php.ini 
+sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" /etc/php5/apache2/php.ini 
 
-echo "# Installing HTML5_Test_Suite_Server_Support version $VERSION"
+msg "# Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
 git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || about
 
