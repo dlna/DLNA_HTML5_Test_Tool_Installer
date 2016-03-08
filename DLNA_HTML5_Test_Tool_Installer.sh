@@ -12,6 +12,11 @@ WPT_RESULTS_DIR="/var/www/html/upload"
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 NC=$(tput sgr0)
+BOLD=$(tput bold)
+REV=$(tput smso)
+
+SCRIPT=$(basename ${BASH_SOURCE[0]})
+SCRIPT_VERSION="1.0.0"
 
 # Some support functions
 function error()
@@ -36,10 +41,44 @@ function msg()
 	echo "${GREEN}$*${NC}"
 }
 
+function usage()
+{
+  echo "Help documentation for ${BOLD}${SCRIPT}${NC}."
+  echo "${BOLD}$SCRIPT${NC} [OPTION] "
+  echo "Command line switches are optional. The following switches are recognized."
+  echo "${REV}-u <user>${NC}  Sets the Github user account to grab the repositories from. Default is ${BOLD}dlna${NC}."
+  echo "${REV}-r <tag>${NC}   Sets version to download. For the latest version use ${BOLD}master${NC}. Default is ${BOLD}${VERSION}${NC}."
+  echo "${REV}-h${NC}         Displays this help message. No further functions are performed."
+  echo "${REV}-v${NC}         Displays the installer script. No further functions are performed."
+  echo "Example: ${BOLD}${SCRIPT} -u ${GITHUB_USER} -r ${VERSION}${NC}"
+  exit 1
+}
+
+function git-update()
+{
+	REPO=$1
+	DIR=$2
+	if [ -e $DIR ]; then 
+		msg "# Updating ${REPO} version ${VERSION}"
+		cd $DIR
+		git remote set-url origin "https://github.com/${GITHUB_USER}/${REPO}.git" || abort
+		git fetch origin || abort
+		git checkout $VERSION || abort
+		git tag | grep $VERSION > /dev/null
+		if [ $? -ne 0 ]; then 
+			git pull origin $VERSION || abort
+		fi
+	else
+		msg "# Installing ${REPO} version ${VERSION}"
+		git clone --branch $VERSION "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
+		cd $DIR
+		git submodule update --init --recursive
+	fi
+}
+
 msg "DLNA HTML5 Test Tool Installer"
 msg "=============================="
 msg ""
-
 
 # Test for pre-requisites 
 if [ "$(id -u)" != "0" ]; then
@@ -49,6 +88,30 @@ fi
 
 ifconfig eth0 > /dev/null 2>&1 > /dev/null || error "eth0 not found"
 ifconfig eth1 > /dev/null 2>&1 > /dev/null || error "eth1 not found"
+
+# Parse command line
+while getopts ":u:r:hv" opt; do
+  case $opt in
+    u)
+      GITHUB_USER=$OPTARG
+      ;;
+    r)
+      VERSION=$OPTARG
+      ;;
+    h)  # show help
+      usage
+      ;;
+    v)  # show version
+      msg "$SCRIPT v$SCRIPT_VERSION"
+      ;;
+    \?)
+      error "Invalid option: -$OPTARG"
+      ;;
+    :)
+      error "Option -$OPTARG requires an argument."
+      ;;
+  esac
+done
 
 echo -n "Install Version $VERSION? [y/N] "
 read CONFIRM
@@ -66,12 +129,12 @@ adduser --quiet $SERVICE_USER $SERVICE_USER
 if [ -e $WPT_DIR ]; then 
 	msg "# Updating web-platform-test version $VERSION"
 	cd $WPT_DIR
-	git remote set-url origin "https://github.com/${GITHUB_USER}/web-platform-tests.git" || about
+	git remote set-url origin "https://github.com/${GITHUB_USER}/web-platform-tests.git" || abort
 	git fetch origin || abort
 	git checkout $VERSION || abort
 else
 	msg "# Installing web-platform-test version $VERSION"
-	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/web-platform-tests.git" $WPT_DIR || about
+	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/web-platform-tests.git" $WPT_DIR || abort
 	cd $WPT_DIR
 	git submodule update --init --recursive
 fi
@@ -82,40 +145,40 @@ sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http
 if [ -e $WPT_RESULTS_DIR ]; then 
 	msg "# Updating WPT_Results_Collection_Server version $VERSION"
 	cd $WPT_RESULTS_DIR
-	git remote set-url origin "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" || about
+	git remote set-url origin "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" || abort
 	git fetch origin || abort
 	git checkout $VERSION || abort
 else
 	msg "# Installing WPT_Results_Collection_Server version $VERSION"
-	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" $WPT_RESULTS_DIR || about
+	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" $WPT_RESULTS_DIR || abort
 	cd $WPT_RESULTS_DIR
 fi
 if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	if [ ! -x /usr/local/bin/composer ]; then 
 		msg "# Installing composer"
 		cd $TEMP_DIR
-		curl -sS https://getcomposer.org/installer | php || about
-		mv composer.phar /usr/local/bin/composer || about
+		curl -sS https://getcomposer.org/installer | php || abort
+		mv composer.phar /usr/local/bin/composer || abort
 	fi
 	
 	cd $WPT_RESULTS_DIR
-	composer install || about
-	
+	composer install || abort
+
 	if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
 		msg "# Installing Notifier"
 		if [ ! -e /etc/php5/apache2/conf.d/99-zmq.ini ]; then 
 			cd $TEMP_DIR
-			git clone git://github.com/mkoppanen/php-zmq.git || about
-			cd php-zmq|| about
-			phpize && ./configure || about
-			make || about
-			make install || about
-			echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || about
-			echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || about
+			git clone git://github.com/mkoppanen/php-zmq.git || abort
+			cd php-zmq|| abort
+			phpize && ./configure || abort
+			make || abort
+			make install || abort
+			echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || abort
+			echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || abort
 		fi
 		
 		cd $WPT_RESULTS_DIR/Notifier
-		composer install || about
+		composer install || abort
 	fi
 fi
 
@@ -130,42 +193,42 @@ sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" /etc/php5/apache2/ph
 
 msg "# Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
-git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || about
+git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || abort
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || about
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || about
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || about
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
 for IF in eth0 eth1
 do
 	ifdown $IF
 	ifup $IF
 done
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/* /etc/bind/ || about
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/* /etc/bind/ || abort
 service bind9 restart
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/* /etc/dhcp/ || about
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/* /etc/dhcp/ || abort
 service isc-dhcp-server restart
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || about
-sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/web-platform-test || about
-sed -i "s:WPT_DIR=\"/home/\$USER/web-platform-tests\":WPT_DIR=\"${WPT_DIR}\":" /etc/init.d/web-platform-test || about
-update-rc.d web-platform-test defaults || about
+cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
+sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/web-platform-test || abort
+sed -i "s:WPT_DIR=\"/home/\$USER/web-platform-tests\":WPT_DIR=\"${WPT_DIR}\":" /etc/init.d/web-platform-test || abort
+update-rc.d web-platform-test defaults || abort
 service web-platform-test start
 
 if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results ]; then
-	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || about
-	sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/wpt-results || about
-	sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || about
+	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || abort
+	sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/wpt-results || abort
+	sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || abort
 	update-rc.d wpt-results defaults || abou
 	service wpt-results start
 fi
 
 if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/web ]; then
-	if [ -e mv /var/www/html/index.html ]; then
-		mv /var/www/html/index.html /var/www/html/~index.html || about
+	if [ -e /var/www/html/index.html ]; then
+		mv /var/www/html/index.html /var/www/html/~index.html || abort
 	fi
-	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web/* /var/www/html/ || about
+	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web/* /var/www/html/ || abort
 fi
 
 cleanup
