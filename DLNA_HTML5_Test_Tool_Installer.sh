@@ -64,21 +64,27 @@ function usage()
 
 function git-update()
 {
-	REPO=$1
-	DIR=$2
+	DIR=$1
+	REPO=$2
 	if [ -e $DIR ]; then 
-		msg "# Updating ${REPO} version ${VERSION}"
+		msg "# Updating ${REPO} version ${VERSION} from ${GITHUB_USER}"
 		cd $DIR
-		git remote set-url origin "https://github.com/${GITHUB_USER}/${REPO}.git" || abort
-		git fetch origin || abort
-		git checkout $VERSION || abort
+		# Add the new remote if needed 
+		git remote show | grep ${GITHUB_USER}  > /dev/null || git remote add ${GITHUB_USER} "https://github.com/${GITHUB_USER}/${REPO}.git" || abort
+		git fetch ${GITHUB_USER} || abort
 		git tag | grep $VERSION > /dev/null
-		if [ $? -ne 0 ]; then 
-			git pull origin $VERSION || abort
+		if [ $? -eq 0 ]; then 
+			git checkout $VERSION || abort
+		else
+			git config user.name "DLNA HTML5 Test Tool Installer"
+			git config user.email "htt@dlna.org"
+			git merge ${GITHUB_USER}/$VERSION -m "Merge remote-tracking branch '${GITHUB_USER}/$VERSION'"
 		fi
 	else
-		msg "# Installing ${REPO} version ${VERSION}"
-		git clone --branch $VERSION "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
+		msg "# Installing ${REPO} version ${VERSION} from ${GITHUB_USER}"
+		git clone --origin ${GITHUB_USER} --branch $VERSION "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
+	fi
+	if [ -e $DIR/.gitmodules ]; then
 		cd $DIR
 		git submodule update --init --recursive
 	fi
@@ -199,33 +205,12 @@ adduser --system --quiet $SERVICE_USER
 addgroup --system --quiet $SERVICE_USER
 adduser --quiet $SERVICE_USER $SERVICE_USER
 
-if [ -e $WPT_DIR ]; then 
-	msg "# Updating web-platform-test version $VERSION"
-	cd $WPT_DIR
-	git remote set-url origin "https://github.com/${GITHUB_USER}/web-platform-tests.git" || abort
-	git fetch origin || abort
-	git checkout $VERSION || abort
-else
-	msg "# Installing web-platform-test version $VERSION"
-	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/web-platform-tests.git" $WPT_DIR || abort
-	cd $WPT_DIR
-	git submodule update --init --recursive
-fi
+git-update $WPT_DIR web-platform-tests
 python tools/scripts/manifest.py
 cp config.default.json config.json
 sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http://web-platform.test/upload/api.php/"}!' -i config.json
 
-if [ -e $WPT_RESULTS_DIR ]; then 
-	msg "# Updating WPT_Results_Collection_Server version $VERSION"
-	cd $WPT_RESULTS_DIR
-	git remote set-url origin "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" || abort
-	git fetch origin || abort
-	git checkout $VERSION || abort
-else
-	msg "# Installing WPT_Results_Collection_Server version $VERSION"
-	git clone --branch $VERSION "https://github.com/${GITHUB_USER}/WPT_Results_Collection_Server.git" $WPT_RESULTS_DIR || abort
-	cd $WPT_RESULTS_DIR
-fi
+git-update $WPT_RESULTS_DIR WPT_Results_Collection_Server
 
 if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	if [ ! -x /usr/local/bin/composer ]; then 
