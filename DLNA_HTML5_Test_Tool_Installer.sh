@@ -213,6 +213,8 @@ sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http
 git-update $WPT_RESULTS_DIR WPT_Results_Collection_Server
 
 if [ -e $WPT_RESULTS_DIR/composer.json ]; then
+	apt-get install -y libphp-pclzip unzip
+
 	if [ ! -x /usr/local/bin/composer ]; then 
 		msg "# Installing composer"
 		cd $TEMP_DIR
@@ -241,12 +243,19 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 		cd $WPT_RESULTS_DIR/Notifier
 		composer install || abort
 	fi
+
+	if [ -e $WPT_RESULTS_DIR/js/DrmViewModel.js ]; then 
+		# The DRM login code requires the PHP SOAP client
+		apt-get install -y php-soap
+		service apache2 restart
+	fi
 fi
 
 if [ ! -e $WPT_RESULTS_DIR/logs ]; then
 	mkdir $WPT_RESULTS_DIR/logs || abort
 	chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
 fi
+
 if [ ! -e $WPT_RESULTS_DIR/data ]; then
 	mkdir $WPT_RESULTS_DIR/data || abort
 	chown www-data:www-data $WPT_RESULTS_DIR/data || abort
