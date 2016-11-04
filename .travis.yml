@@ -1,13 +1,8 @@
 language: bash
 
-matrix:
-    include:
-        - os: linux
-          sudo: required
-          dist: trusty
-        - os: linux
-          sudo: required
-          dist: xenial
+os: linux
+sudo: true
+dist: trusty
 
 env:
     - HTT_VERSION=master
@@ -16,7 +11,7 @@ env:
 
 install:
     - sudo apt-get update
-      sudo apt-get upgrade -y
+    - sudo apt-get upgrade -y
 
 script:
     - sudo bash DLNA_HTML5_Test_Tool_Installer.sh -r $HTT_VERSION
