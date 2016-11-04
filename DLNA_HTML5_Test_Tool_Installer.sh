@@ -1,22 +1,30 @@
 #!/bin/bash
 
-VERSION="Release_2014.09.31"
-GITHUB_USER="dlna"
+# Load and saved config
+CONFIG=$HOME/.htt_installer/config
+if [ -e $CONFIG ]; then
+	source $CONFIG
+fi
+
+VERSION=${VERSION:=Release_2014.09.31}
+GITHUB_USER=${GITHUB_USER:=dlna}
+SERVICE_USER=${SERVICE_USER:=dhtt}
+WPT_DIR=${WPT_DIR:=/usr/local/web-platform-test}
+WPT_RESULTS_DIR=${WPT_RESULTS_DIR:=/var/www/html/upload}
+IFACE_INET=${IFACE_INET:=eth0}
+IFACE_TEST=${IFACE_TEST:=eth1}
+
+# Script statics
+SCRIPT=$(basename ${BASH_SOURCE[0]})
+SCRIPT_VERSION="1.0.1"
+
 TEMP_DIR=$(mktemp --directory)
-
-SERVICE_USER="dhtt"
-
-WPT_DIR="/usr/local/web-platform-test"
-WPT_RESULTS_DIR="/var/www/html/upload"
 
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 NC=$(tput sgr0)
 BOLD=$(tput bold)
 REV=$(tput smso)
-
-SCRIPT=$(basename ${BASH_SOURCE[0]})
-SCRIPT_VERSION="1.0.0"
 
 # Some support functions
 function error()
@@ -76,6 +84,18 @@ function git-update()
 	fi
 }
 
+function cp_net()
+{
+	IN=$1
+	OUT=$2
+
+	cat $IN |
+		sed s/eth0/IFACE_INET/ |
+		sed s/eth1/IFACE_TEST/ |
+		sed s/IFACE_INET/$IFACE_INET/ |
+		sed s/IFACE_TEST/$IFACE_TEST/ > $OUT
+}
+
 msg "DLNA HTML5 Test Tool Installer"
 msg "=============================="
 msg ""
@@ -83,11 +103,17 @@ msg ""
 # Test for pre-requisites 
 if [ "$(id -u)" != "0" ]; then
 	# This is not ideal but will do for a first version
-    error "This script must be run as root" 
+	error "This script must be run as root" 
 fi
 
-ifconfig eth0 > /dev/null 2>&1 > /dev/null || error "eth0 not found"
-ifconfig eth1 > /dev/null 2>&1 > /dev/null || error "eth1 not found"
+# Check for support OS
+OS_NAME=$(lsb_release -i | cut -d: -f2 | tr -d '[:space:]')
+OS_VERSION=$(lsb_release -r | cut -d: -f2 | tr -d '[:space:]')
+
+if [ "$OS_NAME" != "Ubuntu" -o \( "$OS_VERSION" != "14.04" -a "$OS_VERSION" != "16.04" \) ]; then
+	# This is not ideal but will do for a first version
+	error "This script only supports Ubuntu 14.04, found $OS_NAME $OS_VERSION"
+fi
 
 # Parse command line
 while getopts ":u:r:hv" opt; do
@@ -113,14 +139,61 @@ while getopts ":u:r:hv" opt; do
   esac
 done
 
-echo -n "Install Version $VERSION? [y/N] "
+echo -n "Install Version $VERSION from $GITHUB_USER? [y/N] "
 read CONFIRM
 if [ "y" != "$CONFIRM" -a "Y" != "$CONFIRM" ]; then
 	abort
 fi
 
+msg "### Setup ethernet ports"
+
+# Check for ethernet adapters
+CONFIG_IFACE=0
+ifconfig $IFACE_INET > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
+ifconfig $IFACE_TEST > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
+
+if [ 1 == $CONFIG_IFACE ]; then
+	msg "### Configure network interfaces"
+
+	ifaces=($(ifconfig -a | grep "encap\|mtu" | awk -F'[ :]' {'print $1'} | grep -v lo))
+
+	printf "\nSelect Test Network Interface:\n"
+	for i in "${!ifaces[@]}"; do
+		printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
+		printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
+	done
+	read -r -p "> " tlanq
+	IFACE_INET=(${ifaces[tlanq]})
+
+	printf "\nSelect Internet Interface:\n"
+	for i in "${!ifaces[@]}"; do
+		printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
+		printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
+	done
+	read -r -p "> " inetq
+	IFACE_TEST=(${ifaces[inetq]})
+fi
+
+if [ "$IFACE_INET" == "$IFACE_TEST" ]; then
+	error "Can not use the same interface for both Internet and Test networks"
+fi
+
+case $OS_VERSION in
+14.04)
+	PHP=php5
+	PHP_CONF=/etc/php5
+	;;
+16.04)
+	PHP=php
+	PHP_CONF=/etc/php/7.0
+	;;
+*)
+	error "Unknown OS version ($OS_VERSION)"
+	;;
+esac
+
 msg "### Installing pre-requisits"
-apt-get install -y ssh git bind9 isc-dhcp-server python python-html5lib curl apache2 php5 php5-dev libapache2-mod-php5 pkg-config libzmq-dev || abort
+apt-get install -y ssh git bind9 isc-dhcp-server python python-html5lib curl apache2 ${PHP} ${PHP}-dev libapache2-mod-${PHP} pkg-config libzmq-dev || abort
 
 adduser --system --quiet $SERVICE_USER
 addgroup --system --quiet $SERVICE_USER
@@ -162,7 +235,7 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 		mv composer.phar /usr/local/bin/composer || abort
 	fi
 	
-	if [ ! -e /etc/php5/apache2/conf.d/99-zmq.ini ]; then 
+	if [ ! -e ${PHP_CONF}/apache2/conf.d/99-zmq.ini ]; then 
 		msg "# Installing PHP ZQM extension"
 		cd $TEMP_DIR
 		git clone git://github.com/mkoppanen/php-zmq.git || abort
@@ -170,8 +243,8 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 		phpize && ./configure || abort
 		make || abort
 		make install || abort
-		echo extension=zmq.so | tee /etc/php5/apache2/conf.d/99-zmq.ini || abort
-		echo extension=zmq.so | tee /etc/php5/cli/conf.d/99-zmq.ini || abort
+		echo extension=zmq.so | tee ${PHP_CONF}/apache2/conf.d/99-zmq.ini || abort
+		echo extension=zmq.so | tee ${PHP_CONF}/cli/conf.d/99-zmq.ini || abort
 		service apache2 restart
 	fi
 	
@@ -194,27 +267,34 @@ if [ ! -e $WPT_RESULTS_DIR/data ]; then
 	chown www-data:www-data $WPT_RESULTS_DIR/data || abort
 fi
 
-sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" /etc/php5/apache2/php.ini 
-sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" /etc/php5/apache2/php.ini 
-sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" /etc/php5/apache2/php.ini 
+sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" ${PHP_CONF}/apache2/php.ini 
+sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" ${PHP_CONF}/apache2/php.ini 
+sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" ${PHP_CONF}/apache2/php.ini 
 
 msg "# Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
 git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || abort
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
-for IF in eth0 eth1
+# Set up the network
+cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
+cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
+cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
+for IF in $IFACE_INET $IFACE_TEST
 do
 	ifdown $IF
 	ifup $IF
 done
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/* /etc/bind/ || abort
+for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/*
+do
+	cp_net $i /etc/bind/$(basename $i) || abort
+done
 service bind9 restart
 
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/* /etc/dhcp/ || abort
+for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/*
+do
+	cp_net $i /etc/dhcp/$(basename $i) || abort
+done
 service isc-dhcp-server restart
 
 cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
@@ -240,5 +320,15 @@ if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/web ]; then
 	fi
 	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web/* /var/www/html/ || abort
 fi
+
+# Save our config
+mkdir -p $(dirname $CONFIG)
+echo "VERSION=${VERSION}" > $CONFIG
+echo "GITHUB_USER=${GITHUB_USER}" >> $CONFIG
+echo "SERVICE_USER=${SERVICE_USER}" >> $CONFIG
+echo "WPT_DIR=${WPT_DIR}" >> $CONFIG
+echo "WPT_RESULTS_DIR=${WPT_RESULTS_DIR}" >> $CONFIG
+echo "IFACE_INET=${IFACE_INET}" >> $CONFIG
+echo "IFACE_TEST=${IFACE_TEST}" >> $CONFIG
 
 cleanup
