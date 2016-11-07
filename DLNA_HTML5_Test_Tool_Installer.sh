@@ -28,6 +28,8 @@ NC=$(tput sgr0)
 BOLD=$(tput bold)
 REV=$(tput smso)
 
+S3_DRM_DIR="s3://content.dlna.org/DRM Content/Staging/"
+
 # Some support functions
 function error()
 {
@@ -130,7 +132,8 @@ if [ "$OS_NAME" != "Ubuntu" -o \( "$OS_VERSION" != "14.04" -a "$OS_VERSION" != "
 fi
 
 # Parse command line
-while getopts ":u:r:hvd" opt; do
+FORCE_YES=0
+while getopts ":u:r:hvdy" opt; do
   case $opt in
     u)
       GITHUB_USER=$OPTARG
@@ -147,6 +150,9 @@ while getopts ":u:r:hvd" opt; do
     d)  # Download DRM content
       DRM_CONTENT=1
       ;;
+    y)  # Download DRM content
+      FORCE_YES=1
+      ;;
     \?)
       error "Invalid option: -$OPTARG"
       ;;
@@ -156,13 +162,13 @@ while getopts ":u:r:hvd" opt; do
   esac
 done
 
-echo -n "Install Version $VERSION from $GITHUB_USER? [y/N] "
-read CONFIRM
-if [ "y" != "$CONFIRM" -a "Y" != "$CONFIRM" ]; then
-	abort
+if [ 0 == ${FORCE_YES} ]; then 
+	echo -n "Install Version $VERSION from $GITHUB_USER? [y/N] "
+	read CONFIRM
+	if [ "y" != "$CONFIRM" -a "Y" != "$CONFIRM" ]; then
+		abort
+	fi
 fi
-
-msg "### Setup ethernet ports"
 
 # Check for ethernet adapters
 CONFIG_IFACE=0
@@ -225,8 +231,6 @@ apt-get install -y ssh git bind9 isc-dhcp-server python python-html5lib curl apa
 adduser --system --quiet $SERVICE_USER
 addgroup --system --quiet $SERVICE_USER
 adduser --quiet $SERVICE_USER $SERVICE_USER
-
-S3_DRM_DIR="s3://content.dlna.org/DRM Content/Staging/"
 
 git-update $WPT_DIR web-platform-tests
 python tools/scripts/manifest.py
