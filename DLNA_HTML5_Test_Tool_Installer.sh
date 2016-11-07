@@ -13,6 +13,7 @@ WPT_DIR=${WPT_DIR:=/usr/local/web-platform-test}
 WPT_RESULTS_DIR=${WPT_RESULTS_DIR:=/var/www/html/upload}
 IFACE_INET=${IFACE_INET:=eth0}
 IFACE_TEST=${IFACE_TEST:=eth1}
+DRM_CONTENT=${DRM_CONTENT:=0}
 
 # Script statics
 SCRIPT=$(basename ${BASH_SOURCE[0]})
@@ -22,6 +23,7 @@ TEMP_DIR=$(mktemp --directory)
 
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
+WARN=$(tput setaf 3)
 NC=$(tput sgr0)
 BOLD=$(tput bold)
 REV=$(tput smso)
@@ -49,6 +51,11 @@ function msg()
 	echo "${GREEN}$*${NC}"
 }
 
+function warn()
+{
+	echo "${WARN}$*${NC}"
+}
+
 function usage()
 {
   echo "Help documentation for ${BOLD}${SCRIPT}${NC}."
@@ -56,6 +63,7 @@ function usage()
   echo "Command line switches are optional. The following switches are recognized."
   echo "${REV}-u <user>${NC}  Sets the Github user account to grab the repositories from. Default is ${BOLD}dlna${NC}."
   echo "${REV}-r <tag>${NC}   Sets version to download. For the latest version use ${BOLD}master${NC}. Default is ${BOLD}${VERSION}${NC}."
+  echo "${REV}-d${NC}         Download the DRM test content, requires access to DLNA Test Content on Amazon S3"
   echo "${REV}-h${NC}         Displays this help message. No further functions are performed."
   echo "${REV}-v${NC}         Displays the installer script. No further functions are performed."
   echo "Example: ${BOLD}${SCRIPT} -u ${GITHUB_USER} -r ${VERSION}${NC}"
@@ -122,7 +130,7 @@ if [ "$OS_NAME" != "Ubuntu" -o \( "$OS_VERSION" != "14.04" -a "$OS_VERSION" != "
 fi
 
 # Parse command line
-while getopts ":u:r:hv" opt; do
+while getopts ":u:r:hvd" opt; do
   case $opt in
     u)
       GITHUB_USER=$OPTARG
@@ -135,6 +143,9 @@ while getopts ":u:r:hv" opt; do
       ;;
     v)  # show version
       msg "$SCRIPT v$SCRIPT_VERSION"
+      ;;
+    d)  # Download DRM content
+      DRM_CONTENT=1
       ;;
     \?)
       error "Invalid option: -$OPTARG"
@@ -184,6 +195,16 @@ if [ "$IFACE_INET" == "$IFACE_TEST" ]; then
 	error "Can not use the same interface for both Internet and Test networks"
 fi
 
+# Check we are setup for downloading the DRM content
+if [ 1 -eq ${DRM_CONTENT} ]; then
+	which smbcmd || apt-get install -y s3cmd
+	if [ ! -e ${HOME}/.s3cfg ]; then
+		msg ">>> Please enter your Amazon S3 credentials to enable download of DRM content"
+		s3cmd --configure
+	fi
+fi
+
+# OS specific settings
 case $OS_VERSION in
 14.04)
 	PHP=php5
@@ -205,10 +226,20 @@ adduser --system --quiet $SERVICE_USER
 addgroup --system --quiet $SERVICE_USER
 adduser --quiet $SERVICE_USER $SERVICE_USER
 
+S3_DRM_DIR="s3://content.dlna.org/DRM Content/Staging/"
+
 git-update $WPT_DIR web-platform-tests
 python tools/scripts/manifest.py
 cp config.default.json config.json
 sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http://web-platform.test/upload/api.php/"}!' -i config.json
+if [ 1 -eq ${DRM_CONTENT} ]; then
+	if [ -e ${WPT_DIR}/drm-tests ]; then
+		mkdir -p ${WPT_DIR}/drm-tests/content
+		s3cmd sync "${S3_DRM_DIR}" ${WPT_DIR}/drm-tests/content/
+	else
+		warn "Warning: web-platform-test version ${VERSION} from ${GITHUB_USER} does not support DRM testing"
+	fi
+fi
 
 git-update $WPT_RESULTS_DIR WPT_Results_Collection_Server
 
@@ -292,14 +323,14 @@ done
 service isc-dhcp-server restart
 
 cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
-sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/web-platform-test || abort
+sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/web-platform-test || abort
 sed -i "s:WPT_DIR=\"/home/\$USER/web-platform-tests\":WPT_DIR=\"${WPT_DIR}\":" /etc/init.d/web-platform-test || abort
 update-rc.d web-platform-test defaults || abort
 service web-platform-test start
 
 if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results ]; then
 	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || abort
-	sed -i "s:USER=\"ubuntu\":USER=\"$SERVICE_USER\":" /etc/init.d/wpt-results || abort
+	sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/wpt-results || abort
 	sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || abort
 	# Fix some bugs in older versions of the script
 	sed -i "s:web-platform-test:wpt-results:" /etc/init.d/wpt-results || abort
@@ -324,5 +355,6 @@ echo "WPT_DIR=${WPT_DIR}" >> $CONFIG
 echo "WPT_RESULTS_DIR=${WPT_RESULTS_DIR}" >> $CONFIG
 echo "IFACE_INET=${IFACE_INET}" >> $CONFIG
 echo "IFACE_TEST=${IFACE_TEST}" >> $CONFIG
+echo "DRM_CONTENT=${DRM_CONTENT}" >> $CONFIG
 
 cleanup
