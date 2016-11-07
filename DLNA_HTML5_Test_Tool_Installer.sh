@@ -305,11 +305,9 @@ git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_
 cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
 cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
 cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
-for IF in $IFACE_INET $IFACE_TEST
-do
-	ifdown $IF
-	ifup $IF
-done
+
+ifdown $IFACE_TEST
+ifup $IFACE_TEST
 
 for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/*
 do
@@ -322,6 +320,9 @@ do
 	cp_net $i /etc/dhcp/$(basename $i) || abort
 done
 service isc-dhcp-server restart
+
+ifdown $IFACE_INET
+ifup $IFACE_INET
 
 cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
 sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/web-platform-test || abort
