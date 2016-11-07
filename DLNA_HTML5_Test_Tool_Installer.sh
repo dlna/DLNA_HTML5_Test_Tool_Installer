@@ -75,7 +75,7 @@ function git-update()
 	DIR=$1
 	REPO=$2
 	if [ -e $DIR ]; then 
-		msg "# Updating ${REPO} version ${VERSION} from ${GITHUB_USER}"
+		msg "### Updating ${REPO} version ${VERSION} from ${GITHUB_USER}"
 		cd $DIR
 		# Add the new remote if needed 
 		git remote show | grep ${GITHUB_USER}  > /dev/null || git remote add ${GITHUB_USER} "https://github.com/${GITHUB_USER}/${REPO}.git" || abort
@@ -89,7 +89,7 @@ function git-update()
 			git merge ${GITHUB_USER}/$VERSION -m "Merge remote-tracking branch '${GITHUB_USER}/$VERSION'"
 		fi
 	else
-		msg "# Installing ${REPO} version ${VERSION} from ${GITHUB_USER}"
+		msg "### Installing ${REPO} version ${VERSION} from ${GITHUB_USER}"
 		git clone --origin ${GITHUB_USER} --branch $VERSION "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
 	fi
 	if [ -e $DIR/.gitmodules ]; then
@@ -247,18 +247,19 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	apt-get install -y libphp-pclzip unzip
 
 	if [ ! -x /usr/local/bin/composer ]; then 
-		msg "# Installing composer"
+		msg "### Installing composer"
 		cd $TEMP_DIR
 		curl -sS https://getcomposer.org/installer | php || abort
 		mv composer.phar /usr/local/bin/composer || abort
 	fi
 	
 	if [ ! -e ${PHP_CONF}/apache2/conf.d/99-zmq.ini ]; then 
-		msg "# Installing PHP ZQM extension"
+		msg "### Installing PHP ZQM extension"
 		cd $TEMP_DIR
 		git clone git://github.com/mkoppanen/php-zmq.git || abort
 		cd php-zmq || abort
-		phpize && ./configure || abort
+		phpize || abort
+		./configure || abort
 		make || abort
 		make install || abort
 		echo extension=zmq.so | tee ${PHP_CONF}/apache2/conf.d/99-zmq.ini || abort
@@ -270,7 +271,7 @@ if [ -e $WPT_RESULTS_DIR/composer.json ]; then
 	composer install || abort
 
 	if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
-		msg "# Installing Notifier"
+		msg "### Installing Notifier"
 		cd $WPT_RESULTS_DIR/Notifier
 		composer install || abort
 	fi
@@ -296,7 +297,7 @@ sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" ${PHP_
 sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" ${PHP_CONF}/apache2/php.ini 
 sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" ${PHP_CONF}/apache2/php.ini 
 
-msg "# Installing HTML5_Test_Suite_Server_Support version $VERSION"
+msg "### Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
 git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || abort
 
