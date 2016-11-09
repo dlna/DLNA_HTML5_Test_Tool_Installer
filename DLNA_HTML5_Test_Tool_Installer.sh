@@ -13,7 +13,12 @@ WPT_DIR=${WPT_DIR:=/usr/local/web-platform-test}
 WPT_RESULTS_DIR=${WPT_RESULTS_DIR:=/var/www/html/upload}
 IFACE_INET=${IFACE_INET:=eth0}
 IFACE_TEST=${IFACE_TEST:=eth1}
-DRM_CONTENT=${DRM_CONTENT:=0}
+
+INSTALL_DRM_CONTENT=${INSTALL_DRM_CONTENT:=${DRM_CONTENT:=0}}
+INSTALL_WPT=${INSTALL_WPT:=1}
+INSTALL_WPT_RESULTS=${INSTALL_WPT_RESULTS:=1}
+INSTALL_NETWORK=${INSTALL_NETWORK:=1}
+INSTALL_ROUTER=${INSTALL_ROUTER:=1}
 
 # Script statics
 SCRIPT=$(basename ${BASH_SOURCE[0]})
@@ -69,7 +74,7 @@ function usage()
   echo "${REV}-h${NC}         Displays this help message. No further functions are performed."
   echo "${REV}-v${NC}         Displays the installer script. No further functions are performed."
   echo "Example: ${BOLD}${SCRIPT} -u ${GITHUB_USER} -r ${VERSION}${NC}"
-  exit 1
+  exit 0
 }
 
 function git-update()
@@ -131,38 +136,46 @@ if [ "$OS_NAME" != "Ubuntu" -o \( "$OS_VERSION" != "14.04" -a "$OS_VERSION" != "
 	error "This script only supports Ubuntu 14.04, found $OS_NAME $OS_VERSION"
 fi
 
+# NOTE: This requires GNU getopt.
+TEMP=$(getopt -o u:r:hvdy --long user:,revision:,version,help,yes,drm-content,disable-network -- "$@")
+
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+
 # Parse command line
 FORCE_YES=0
-while getopts ":u:r:hvdy" opt; do
-  case $opt in
-    u)
-      GITHUB_USER=$OPTARG
-      ;;
-    r)
-      VERSION=$OPTARG
-      ;;
-    h)  # show help
-      usage
-      ;;
-    v)  # show version
-      msg "$SCRIPT v$SCRIPT_VERSION"
-      ;;
-    d)  # Download DRM content
-      DRM_CONTENT=1
-      ;;
-    y)  # Download DRM content
-      FORCE_YES=1
-      ;;
-    \?)
-      error "Invalid option: -$OPTARG"
-      ;;
-    :)
-      error "Option -$OPTARG requires an argument."
-      ;;
-  esac
+while true; do
+	case "$1" in
+		-u | --user)
+			GITHUB_USER=$2
+			shift 2 ;;
+		-r | --revision)
+			VERSION=$2
+			shift 2 ;;
+		-h | --help)  # show help
+			usage
+			;;
+		-v | --version)  # show version
+			msg "$SCRIPT v$SCRIPT_VERSION"
+			exit 0
+			shift ;;
+		-d | --drm-content)  # Download DRM content
+			INSTALL_DRM_CONTENT=1
+			shift ;;
+		-y | --yes)  # Don't confirm
+			FORCE_YES=1
+			shift ;;
+		--disable-network )
+			INSTALL_NETWORK=0;
+			shift ;;
+		-- ) shift; break ;;
+		* ) break ;;
+	esac
 done
 
-if [ 0 == ${FORCE_YES} ]; then 
+if [ 0 == ${FORCE_YES} ]; then
 	echo -n "Install Version $VERSION from $GITHUB_USER? [y/N] "
 	read CONFIRM
 	if [ "y" != "$CONFIRM" -a "Y" != "$CONFIRM" ]; then
@@ -171,38 +184,40 @@ if [ 0 == ${FORCE_YES} ]; then
 fi
 
 # Check for ethernet adapters
-CONFIG_IFACE=0
-ifconfig $IFACE_INET > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
-ifconfig $IFACE_TEST > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
+if [ 1 -eq ${INSTALL_NETWORK} ]; then
+	CONFIG_IFACE=0
+	ifconfig $IFACE_INET > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
+	ifconfig $IFACE_TEST > /dev/null 2>&1 > /dev/null || CONFIG_IFACE=1
 
-if [ 1 == $CONFIG_IFACE ]; then
-	msg "### Configure network interfaces"
+	if [ 1 == $CONFIG_IFACE ]; then
+		msg "### Configure network interfaces"
 
-	ifaces=($(ifconfig -a | grep "encap\|mtu" | awk -F'[ :]' {'print $1'} | grep -v lo))
+		ifaces=($(ifconfig -a | grep "encap\|mtu" | awk -F'[ :]' {'print $1'} | grep -v lo))
 
-	printf "\nSelect Test Network Interface:\n"
-	for i in "${!ifaces[@]}"; do
-		printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
-		printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
-	done
-	read -r -p "> " tlanq
-	IFACE_INET=(${ifaces[tlanq]})
+		printf "\nSelect Test Network Interface:\n"
+		for i in "${!ifaces[@]}"; do
+			printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
+			printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
+		done
+		read -r -p "> " tlanq
+		IFACE_INET=(${ifaces[tlanq]})
 
-	printf "\nSelect Internet Interface:\n"
-	for i in "${!ifaces[@]}"; do
-		printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
-		printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
-	done
-	read -r -p "> " inetq
-	IFACE_TEST=(${ifaces[inetq]})
-fi
+		printf "\nSelect Internet Interface:\n"
+		for i in "${!ifaces[@]}"; do
+			printf "\t%s)\t%s\t" "$i" "${ifaces[$i]}"
+			printf "$(ifconfig ${ifaces[$i]} | grep 'inet addr' | awk {'print $2'} | sed 's/addr://g')\n"
+		done
+		read -r -p "> " inetq
+		IFACE_TEST=(${ifaces[inetq]})
+	fi
 
-if [ "$IFACE_INET" == "$IFACE_TEST" ]; then
-	error "Can not use the same interface for both Internet and Test networks"
+	if [ "$IFACE_INET" == "$IFACE_TEST" ]; then
+		error "Can not use the same interface for both Internet and Test networks"
+	fi
 fi
 
 # Check we are setup for downloading the DRM content
-if [ 1 -eq ${DRM_CONTENT} ]; then
+if [ 1 -eq ${INSTALL_DRM_CONTENT} ]; then
 	which smbcmd || apt-get install -y s3cmd
 	if [ ! -e ${HOME}/.s3cfg ]; then
 		msg ">>> Please enter your Amazon S3 credentials to enable download of DRM content"
@@ -225,131 +240,150 @@ case $OS_VERSION in
 	;;
 esac
 
+# TODO: Only install the things required for the features we are installing
 msg "### Installing pre-requisits"
+apt-get update -y
 apt-get install -y ssh git bind9 isc-dhcp-server python python-html5lib curl apache2 ${PHP} ${PHP}-dev libapache2-mod-${PHP} pkg-config libzmq-dev || abort
 
-adduser --system --quiet $SERVICE_USER
-addgroup --system --quiet $SERVICE_USER
-adduser --quiet $SERVICE_USER $SERVICE_USER
+if [ 1 -eq ${INSTALL_WPT} -o 1 -eq ${INSTALL_WPT_RESULTS} ]; then 
+	adduser --system --quiet $SERVICE_USER
+	addgroup --system --quiet $SERVICE_USER
+	adduser --quiet $SERVICE_USER $SERVICE_USER
+fi
 
-git-update $WPT_DIR web-platform-tests
-python tools/scripts/manifest.py
-cp config.default.json config.json
-sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http://web-platform.test/upload/api.php/"}!' -i config.json
-if [ 1 -eq ${DRM_CONTENT} ]; then
-	if [ -e ${WPT_DIR}/drm-tests ]; then
-		mkdir -p ${WPT_DIR}/drm-tests/content
-		s3cmd sync "${S3_DRM_DIR}" ${WPT_DIR}/drm-tests/content/
-	else
-		warn "Warning: web-platform-test version ${VERSION} from ${GITHUB_USER} does not support DRM testing"
+if [ 1 -eq ${INSTALL_WPT} ]; then 
+	git-update $WPT_DIR web-platform-tests
+	python tools/scripts/manifest.py
+	cp config.default.json config.json
+	sed 's!"bind_hostname": true}!"bind_hostname"\: true,"test_tool_endpoint": "http://web-platform.test/upload/api.php/"}!' -i config.json
+
+	if [ 1 -eq ${INSTALL_DRM_CONTENT} ]; then
+		if [ -e ${WPT_DIR}/drm-tests ]; then
+			mkdir -p ${WPT_DIR}/drm-tests/content
+			s3cmd sync "${S3_DRM_DIR}" ${WPT_DIR}/drm-tests/content/
+		else
+			warn "Warning: web-platform-test version ${VERSION} from ${GITHUB_USER} does not support DRM testing"
+		fi
 	fi
 fi
 
-git-update $WPT_RESULTS_DIR WPT_Results_Collection_Server
+if [ 1 -eq ${INSTALL_WPT_RESULTS} ]; then 
+	git-update $WPT_RESULTS_DIR WPT_Results_Collection_Server
 
-if [ -e $WPT_RESULTS_DIR/composer.json ]; then
-	apt-get install -y libphp-pclzip unzip
+	if [ -e $WPT_RESULTS_DIR/composer.json ]; then
+		apt-get install -y libphp-pclzip unzip
 
-	if [ ! -x /usr/local/bin/composer ]; then 
-		msg "### Installing composer"
-		cd $TEMP_DIR
-		curl -sS https://getcomposer.org/installer | php || abort
-		mv composer.phar /usr/local/bin/composer || abort
-	fi
-	
-	if [ ! -e ${PHP_CONF}/apache2/conf.d/99-zmq.ini ]; then 
-		msg "### Installing PHP ZQM extension"
-		cd $TEMP_DIR
-		git clone git://github.com/mkoppanen/php-zmq.git || abort
-		cd php-zmq || abort
-		phpize || abort
-		./configure || abort
-		make || abort
-		make install || abort
-		echo extension=zmq.so | tee ${PHP_CONF}/apache2/conf.d/99-zmq.ini || abort
-		echo extension=zmq.so | tee ${PHP_CONF}/cli/conf.d/99-zmq.ini || abort
-		service apache2 restart
-	fi
-	
-	cd $WPT_RESULTS_DIR
-	composer install || abort
-
-	if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
-		msg "### Installing Notifier"
-		cd $WPT_RESULTS_DIR/Notifier
+		if [ ! -x /usr/local/bin/composer ]; then 
+			msg "### Installing composer"
+			cd $TEMP_DIR
+			curl -sS https://getcomposer.org/installer | php || abort
+			mv composer.phar /usr/local/bin/composer || abort
+		fi
+		
+		if [ ! -e ${PHP_CONF}/apache2/conf.d/99-zmq.ini ]; then 
+			msg "### Installing PHP ZQM extension"
+			cd $TEMP_DIR
+			git clone git://github.com/mkoppanen/php-zmq.git || abort
+			cd php-zmq || abort
+			phpize || abort
+			./configure || abort
+			make || abort
+			make install || abort
+			echo extension=zmq.so | tee ${PHP_CONF}/apache2/conf.d/99-zmq.ini || abort
+			echo extension=zmq.so | tee ${PHP_CONF}/cli/conf.d/99-zmq.ini || abort
+			service apache2 restart
+		fi
+		
+		cd $WPT_RESULTS_DIR
 		composer install || abort
+
+		if [ -e $WPT_RESULTS_DIR/Notifier ]; then 
+			msg "### Installing Notifier"
+			cd $WPT_RESULTS_DIR/Notifier
+			composer install || abort
+		fi
+
+		if [ -e $WPT_RESULTS_DIR/js/DrmViewModel.js ]; then 
+			# The DRM login code requires the PHP SOAP client
+			apt-get install -y php-soap
+			service apache2 restart
+		fi
 	fi
 
-	if [ -e $WPT_RESULTS_DIR/js/DrmViewModel.js ]; then 
-		# The DRM login code requires the PHP SOAP client
-		apt-get install -y php-soap
-		service apache2 restart
+	if [ ! -e $WPT_RESULTS_DIR/logs ]; then
+		mkdir $WPT_RESULTS_DIR/logs || abort
+		chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
 	fi
-fi
 
-if [ ! -e $WPT_RESULTS_DIR/logs ]; then
-	mkdir $WPT_RESULTS_DIR/logs || abort
-	chown www-data:www-data $WPT_RESULTS_DIR/logs || abort
-fi
+	if [ ! -e $WPT_RESULTS_DIR/data ]; then
+		mkdir $WPT_RESULTS_DIR/data || abort
+		chown www-data:www-data $WPT_RESULTS_DIR/data || abort
+	fi
 
-if [ ! -e $WPT_RESULTS_DIR/data ]; then
-	mkdir $WPT_RESULTS_DIR/data || abort
-	chown www-data:www-data $WPT_RESULTS_DIR/data || abort
+	sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" ${PHP_CONF}/apache2/php.ini 
+	sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" ${PHP_CONF}/apache2/php.ini 
+	sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" ${PHP_CONF}/apache2/php.ini 
 fi
-
-sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" ${PHP_CONF}/apache2/php.ini 
-sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" ${PHP_CONF}/apache2/php.ini 
-sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" ${PHP_CONF}/apache2/php.ini 
 
 msg "### Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
 git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || abort
 
-# Set up the network
-cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
-cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
-cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
+if [ 1 -eq ${INSTALL_NETWORK} ]; then 
+	# Set up the network
+	cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/interfaces /etc/network/interfaces || abort
+	cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/iptables.up.rules /etc/iptables.up.rules || abort
+	cp_net $TEMP_DIR/HTML5_Test_Suite_Server_Support/network/sysctl.conf /etc/sysctl.conf || abort
 
-ifdown $IFACE_TEST
-ifup $IFACE_TEST
-
-for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/*
-do
-	cp_net $i /etc/bind/$(basename $i) || abort
-done
-service bind9 restart
-
-for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/*
-do
-	cp_net $i /etc/dhcp/$(basename $i) || abort
-done
-service isc-dhcp-server restart
-
-ifdown $IFACE_INET
-ifup $IFACE_INET
-
-cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
-sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/web-platform-test || abort
-sed -i "s:WPT_DIR=\"/home/\$USER/web-platform-tests\":WPT_DIR=\"${WPT_DIR}\":" /etc/init.d/web-platform-test || abort
-update-rc.d web-platform-test defaults || abort
-service web-platform-test start
-
-if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results ]; then
-	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || abort
-	sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/wpt-results || abort
-	sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || abort
-	# Fix some bugs in older versions of the script
-	sed -i "s:web-platform-test:wpt-results:" /etc/init.d/wpt-results || abort
-	sed -i "s:W3C Web Platform Test:DLNA HTML5 Test Tool:" /etc/init.d/wpt-results || abort
-	update-rc.d wpt-results defaults || about
-	service wpt-results start
+	ifdown $IFACE_TEST
+	ifup $IFACE_TEST
 fi
 
-if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/web ]; then
-	if [ -e /var/www/html/index.html ]; then
-		mv /var/www/html/index.html /var/www/html/~index.html || abort
+if [ 1 -eq ${INSTALL_ROUTER} ]; then 
+	for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/bind9/*
+	do
+		cp_net $i /etc/bind/$(basename $i) || abort
+	done
+	service bind9 restart
+
+	for i in $TEMP_DIR/HTML5_Test_Suite_Server_Support/dhcp/*
+	do
+		cp_net $i /etc/dhcp/$(basename $i) || abort
+	done
+	service isc-dhcp-server restart
+fi
+
+if [ 1 -eq ${INSTALL_NETWORK} ]; then 
+	ifdown $IFACE_INET
+	ifup $IFACE_INET
+fi
+
+if [ 1 -eq ${INSTALL_WPT} ]; then 
+	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web-platform-test/web-platform-test /etc/init.d/ || abort
+	sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/web-platform-test || abort
+	sed -i "s:WPT_DIR=\"/home/\$USER/web-platform-tests\":WPT_DIR=\"${WPT_DIR}\":" /etc/init.d/web-platform-test || abort
+	update-rc.d web-platform-test defaults || abort
+	service web-platform-test start
+fi
+
+if [ 1 -eq ${INSTALL_WPT_RESULTS} ]; then 
+	if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results ]; then
+		cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/wpt-results/wpt-results /etc/init.d/ || abort
+		sed -i "s:USER=\"ubuntu\":USER=\"${SERVICE_USER}\":" /etc/init.d/wpt-results || abort
+		sed -i "s:WPT_RESULTS_DIR=\"/home/\$USER/WPT_Results_Collection_Server\":WPT_RESULTS_DIR=\"${WPT_RESULTS_DIR}\":" /etc/init.d/wpt-results || abort
+		# Fix some bugs in older versions of the script
+		sed -i "s:web-platform-test:wpt-results:" /etc/init.d/wpt-results || abort
+		sed -i "s:W3C Web Platform Test:DLNA HTML5 Test Tool:" /etc/init.d/wpt-results || abort
+		update-rc.d wpt-results defaults || about
+		service wpt-results start
 	fi
-	cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web/* /var/www/html/ || abort
+
+	if [ -e $TEMP_DIR/HTML5_Test_Suite_Server_Support/web ]; then
+		if [ -e /var/www/html/index.html ]; then
+			mv /var/www/html/index.html /var/www/html/~index.html || abort
+		fi
+		cp $TEMP_DIR/HTML5_Test_Suite_Server_Support/web/* /var/www/html/ || abort
+	fi
 fi
 
 # Save our config
@@ -361,6 +395,6 @@ echo "WPT_DIR=${WPT_DIR}" >> $CONFIG
 echo "WPT_RESULTS_DIR=${WPT_RESULTS_DIR}" >> $CONFIG
 echo "IFACE_INET=${IFACE_INET}" >> $CONFIG
 echo "IFACE_TEST=${IFACE_TEST}" >> $CONFIG
-echo "DRM_CONTENT=${DRM_CONTENT}" >> $CONFIG
+echo "INSTALL_DRM_CONTENT=${INSTALL_DRM_CONTENT}" >> $CONFIG
 
 cleanup
