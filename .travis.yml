@@ -41,7 +41,7 @@ install:
     - docker pull ubuntu:16.04
     - wget https://github.com/jpetazzo/pipework/raw/master/pipework
     - chmod +x pipework
-    - sudo mv pipework /usr/local
+    - sudo mv pipework /usr/local/bin
 
 script:
     - CONTAINER=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
