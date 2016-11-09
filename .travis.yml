@@ -1,18 +1,50 @@
 language: bash
 
-os: linux
 sudo: required
-dist: trusty
+
+services:
+  - docker
 
 env:
-    - HTT_VERSION=master
-    - HTT_VERSION=Release_2014.09.31
-    - HTT_VERSION=Release_2016.03.11_Alpha
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2014.09.31"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2014.09.31 Release_2016.03.11_Alpha"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2014.09.31 master"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2014.09.31 Release_2016.03.11_Alpha master"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2016.03.11_Alpha"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="Release_2016.03.11_Alpha master"
+    - HTT_OS_VERSION=14.04
+      HTT_VERSIONS="master"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2014.09.31"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2014.09.31 Release_2016.03.11_Alpha"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2014.09.31 master"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2014.09.31 Release_2016.03.11_Alpha master"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2016.03.11_Alpha"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="Release_2016.03.11_Alpha master"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="master"
+
 
 install:
-    - sudo apt-get update
-    - DEBIAN_FRONTEND=noninteractive sudo apt-get --yes --force-yes upgrade
+    - docker pull ubuntu:14.04
+    - docker pull ubuntu:16.04
+    - wget https://github.com/jpetazzo/pipework/raw/master/pipework
+    - sudo mv pipework /usr/local
 
 script:
-    - sudo bash DLNA_HTML5_Test_Tool_Installer.sh -r $HTT_VERSION
-
+    - CONTAINER=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
+    - sudo pipework br0 ${CONTAINER} 192.168.0.1/24
+    - for HTT_VERSION in ${HTT_VERSIONS}; do 
+        docker exec ${CONTAINER} bash DLNA_HTML5_Test_Tool_Installer.sh --disable-network -y -r ${HTT_VERSION} || exit $?; 
+      done
