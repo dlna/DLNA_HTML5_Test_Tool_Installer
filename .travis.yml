@@ -42,10 +42,22 @@ install:
     - chmod +x pipework
     - sudo mv pipework /usr/local/bin
 
+before_script:
+    - echo nameserver 127.0.0.1 > resolv.conf
+    - echo nameserver 8.8.8.8 >> resolv.conf
+    - echo nameserver 8.8.4.4 >> resolv.conf
+
 script:
-    - CONTAINER=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
-    - sudo pipework br0 ${CONTAINER} 192.168.0.1/24
-    - docker cp DLNA_HTML5_Test_Tool_Installer.sh ${CONTAINER}:/root/DLNA_HTML5_Test_Tool_Installer.sh
+    - INSTALL=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
+    - sudo pipework br0 ${INSTALL} 192.168.0.1/24
+    - docker cp DLNA_HTML5_Test_Tool_Installer.sh ${INSTALL}:/root/DLNA_HTML5_Test_Tool_Installer.sh
+    - docker cp resolv.conf ${INSTALL}:/etc/resolv.conf
     - for HTT_VERSION in ${HTT_VERSIONS}; do 
-        docker exec ${CONTAINER} bash /root/DLNA_HTML5_Test_Tool_Installer.sh --disable-network -y -r ${HTT_VERSION} || exit $?; 
+        docker exec ${INSTALL} bash /root/DLNA_HTML5_Test_Tool_Installer.sh --disable-network -y -r ${HTT_VERSION} || exit $?; 
       done
+    - TEST=$(docker run -dit ubuntu:16.04 /bin/bash)
+    - docker exec ${TEST} apt-get -y update
+    - docker exec ${TEST} apt-get -y install dhclient host net-tools curl
+    - sudo bash pipework br0 -i eth1 ${TEST} dhclient
+    - docker cp Validate_Install.sh ${TEST}:/root/Validate_Install.sh
+    - docker exec ${TEST} bash /root/Validate_Install.sh
