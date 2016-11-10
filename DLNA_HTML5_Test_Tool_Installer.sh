@@ -128,7 +128,7 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Check for support OS
-source /etc/lsb_release
+source /etc/lsb-release
 
 if [ "$DISTRIB_ID" != "Ubuntu" -o \( "$DISTRIB_RELEASE" != "14.04" -a "$DISTRIB_RELEASE" != "16.04" \) ]; then
 	# This is not ideal but will do for a first version
