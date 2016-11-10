@@ -128,12 +128,11 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Check for support OS
-OS_NAME=$(lsb_release -i | cut -d: -f2 | tr -d '[:space:]')
-OS_VERSION=$(lsb_release -r | cut -d: -f2 | tr -d '[:space:]')
+source /etc/lsb_release
 
-if [ "$OS_NAME" != "Ubuntu" -o \( "$OS_VERSION" != "14.04" -a "$OS_VERSION" != "16.04" \) ]; then
+if [ "$DISTRIB_ID" != "Ubuntu" -o \( "$DISTRIB_RELEASE" != "14.04" -a "$DISTRIB_RELEASE" != "16.04" \) ]; then
 	# This is not ideal but will do for a first version
-	error "This script only supports Ubuntu 14.04, found $OS_NAME $OS_VERSION"
+	error "This script only supports Ubuntu 14.04, found $DISTRIB_ID $DISTRIB_RELEASE"
 fi
 
 # NOTE: This requires GNU getopt.
@@ -226,7 +225,7 @@ if [ 1 -eq ${INSTALL_DRM_CONTENT} ]; then
 fi
 
 # OS specific settings
-case $OS_VERSION in
+case $DISTRIB_RELEASE in
 14.04)
 	PHP=php5
 	PHP_CONF=/etc/php5
@@ -236,7 +235,7 @@ case $OS_VERSION in
 	PHP_CONF=/etc/php/7.0
 	;;
 *)
-	error "Unknown OS version ($OS_VERSION)"
+	error "Unknown OS version ($DISTRIB_RELEASE)"
 	;;
 esac
 

@@ -35,7 +35,6 @@ env:
     - HTT_OS_VERSION=16.04
       HTT_VERSIONS="master"
 
-
 install:
     - docker pull ubuntu:14.04
     - docker pull ubuntu:16.04
