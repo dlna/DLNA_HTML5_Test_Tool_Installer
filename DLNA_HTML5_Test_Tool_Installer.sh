@@ -72,7 +72,8 @@ function usage()
   echo "${REV}-r <tag>${NC}   Sets version to download. For the latest version use ${BOLD}master${NC}. Default is ${BOLD}${VERSION}${NC}."
   echo "${REV}-d${NC}         Download the DRM test content, requires access to DLNA Test Content on Amazon S3"
   echo "${REV}-h${NC}         Displays this help message. No further functions are performed."
-  echo "${REV}-v${NC}         Displays the installer script. No further functions are performed."
+  echo "${REV}-v${NC}         Displays the installer script version. No further functions are performed."
+  echo "${REV}-y${NC}         Answer 'yes' to any applicable questions from the installer. For use in automated setup, not recommended for normal use."
   echo "Example: ${BOLD}${SCRIPT} -u ${GITHUB_USER} -r ${VERSION}${NC}"
   exit 0
 }
