@@ -46,6 +46,7 @@ install:
 script:
     - CONTAINER=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
     - sudo pipework br0 ${CONTAINER} 192.168.0.1/24
+    - docker cp DLNA_HTML5_Test_Tool_Installer.sh ${CONTAINER}:/root/DLNA_HTML5_Test_Tool_Installer.sh
     - for HTT_VERSION in ${HTT_VERSIONS}; do 
-        docker exec ${CONTAINER} bash DLNA_HTML5_Test_Tool_Installer.sh --disable-network -y -r ${HTT_VERSION} || exit $?; 
+        docker exec ${CONTAINER} bash /root/DLNA_HTML5_Test_Tool_Installer.sh --disable-network -y -r ${HTT_VERSION} || exit $?; 
       done
