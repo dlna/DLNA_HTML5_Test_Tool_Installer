@@ -23,12 +23,14 @@ assert()
     fi
 }
 
-ifconfig
+ifconfig | grep 192.168.0.
+assert "Interface on correct network" $?
 
-cat /etc/resolv.conf
+cat /etc/resolv.conf | grep 192.168.0.1
+assert "Correct DNS server" $?
 
 host web-platform.test
-host web-platform.test 192.168.0.1
+assert "Resolve domain name" $?
 
 curl http://web-platform.test:8000/ > /dev/null
 assert "Web Platform Test up" $?
