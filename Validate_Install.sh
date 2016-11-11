@@ -2,10 +2,10 @@
 
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
-WARN=$(tput setaf 3)
+#WARN=$(tput setaf 3)
 NC=$(tput sgr0)
-BOLD=$(tput bold)
-REV=$(tput smso)
+#BOLD=$(tput bold)
+#REV=$(tput smso)
 
 RET=0
 
@@ -22,6 +22,13 @@ assert()
         echo " [  ${GREEN}OK${NC}  ]"
     fi
 }
+
+ifconfig
+
+cat /etc/resolv.conf
+
+host web-platform.test
+host web-platform.test 192.168.0.1
 
 curl http://web-platform.test:8000/ > /dev/null
 assert "Web Platform Test up" $?
