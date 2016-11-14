@@ -26,7 +26,7 @@ assert()
 ifconfig | grep 192.168.0.
 assert "Interface on correct network" $?
 
-cat /etc/resolv.conf | grep 192.168.0.1
+grep 192.168.0.1 < /etc/resolv.conf
 assert "Correct DNS server" $?
 
 host web-platform.test
