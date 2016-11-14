@@ -42,7 +42,22 @@ install:
     - chmod +x pipework
     - sudo mv pipework /usr/local/bin
     - sudo apt-get update
-    - sudo apt-get install arping
+    - sudo apt-get install arping busybox
+    - echo "#!/bin/bash" > printOpts
+    - echo "" >> printOpts
+    - echo "echo $*" >> printOpts
+    - echo "" >> printOpts
+    - echo "env > dhcp.$1.env" >> printOpts
+    - echo "" >> printOpts
+    - echo "case $1 in" >> printOpts
+    - echo "        bound*)" >> printOpts
+    - echo "        echo ip       $ip" >> printOpts
+    - echo "        echo subnet   $subnet" >> printOpts
+    - echo "        echo router   $router" >> printOpts
+    - echo "        echo dns      $dns" >> printOpts
+    - echo "        ;;" >> printOpts
+    - echo "esac" >> printOpts
+    - chmod +x printOpts
 
 script:
     - INSTALL=$(docker run -dit ubuntu:${HTT_OS_VERSION} /bin/bash)
@@ -65,10 +80,10 @@ script:
     - docker exec ${TEST} apt-get -y update
     - docker exec ${TEST} apt-get -y install host net-tools curl isc-dhcp-client
     - sudo bash pipework br0 -i eth1 ${TEST} dhclient
-    # On Travis the WPT DNS server gets stuck on the end, replace with just the WPT DNS server once know it
-    # was correctly setup
-    - docker exec -it ${TEST} cat /etc/resolv.conf | tee resolv.conf | grep 192.168.0.1
-    - cat resolv.conf
+    # On Travis the WPT DNS server does not get setup :( verify that the DHCP/DNS is working ont the host machine
+    # before forcing it on the test Docker container
+    - sudo busybox udhcpc -i br0 -s $PWD/printOpts
+    - grep dns < dhcp.bound.env | grep 192.168.0.1
     - docker exec ${TEST} sh -c 'echo "nameserver 192.168.0.1" > /etc/resolv.conf'
     - docker cp Validate_Install.sh ${TEST}:/root/Validate_Install.sh
     - docker exec ${TEST} bash /root/Validate_Install.sh
