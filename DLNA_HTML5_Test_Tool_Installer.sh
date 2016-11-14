@@ -291,7 +291,6 @@ if [ 1 -eq ${INSTALL_WPT_RESULTS} ]; then
 			make install || abort
 			echo extension=zmq.so | tee ${PHP_CONF}/apache2/conf.d/99-zmq.ini || abort
 			echo extension=zmq.so | tee ${PHP_CONF}/cli/conf.d/99-zmq.ini || abort
-			service apache2 restart
 		fi
 		
 		cd $WPT_RESULTS_DIR
@@ -306,7 +305,6 @@ if [ 1 -eq ${INSTALL_WPT_RESULTS} ]; then
 		if [ -e $WPT_RESULTS_DIR/js/DrmViewModel.js ]; then 
 			# The DRM login code requires the PHP SOAP client
 			apt-get install -y php-soap
-			service apache2 restart
 		fi
 	fi
 
@@ -323,6 +321,8 @@ if [ 1 -eq ${INSTALL_WPT_RESULTS} ]; then
 	sed -E -i "s/upload_max_filesize *= *[0-9]+M/upload_max_filesize = 200M/" ${PHP_CONF}/apache2/php.ini 
 	sed -E -i "s/post_max_size *= *[0-9]+M/post_max_size = 200M/" ${PHP_CONF}/apache2/php.ini 
 	sed -E -i "s/memory_limit *= *[0-9]+M/memory_limit = 512M/" ${PHP_CONF}/apache2/php.ini 
+	
+	service apache2 restart
 fi
 
 msg "### Installing HTML5_Test_Suite_Server_Support version $VERSION"
