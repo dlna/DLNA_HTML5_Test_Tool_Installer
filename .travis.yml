@@ -43,20 +43,17 @@ install:
     - sudo mv pipework /usr/local/bin
     - sudo apt-get update
     - sudo apt-get install arping busybox
-    - echo "#!/bin/bash" > printOpts
-    - echo "" >> printOpts
-    - echo "echo $*" >> printOpts
-    - echo "" >> printOpts
-    - echo "env > dhcp.$1.env" >> printOpts
-    - echo "" >> printOpts
-    - echo "case $1 in" >> printOpts
-    - echo "        bound*)" >> printOpts
-    - echo "        echo ip       $ip" >> printOpts
-    - echo "        echo subnet   $subnet" >> printOpts
-    - echo "        echo router   $router" >> printOpts
-    - echo "        echo dns      $dns" >> printOpts
-    - echo "        ;;" >> printOpts
-    - echo "esac" >> printOpts
+    - echo '#!/bin/bash' > printOpts
+    - echo 'echo $*' >> printOpts
+    - echo 'env > dhcp.$1.env' >> printOpts
+    - echo 'case $1 in' >> printOpts
+    - echo '        bound*)' >> printOpts
+    - echo '        echo ip       $ip' >> printOpts
+    - echo '        echo subnet   $subnet' >> printOpts
+    - echo '        echo router   $router' >> printOpts
+    - echo '        echo dns      $dns' >> printOpts
+    - echo '        ;;' >> printOpts
+    - echo 'esac' >> printOpts
     - chmod +x printOpts
 
 script:
