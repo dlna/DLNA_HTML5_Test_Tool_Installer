@@ -82,23 +82,31 @@ function git-update()
 {
 	DIR=$1
 	REPO=$2
-	if [ -e $DIR ]; then 
-		msg "### Updating ${REPO} version ${VERSION} from ${GITHUB_USER}"
+	REF=${VERSION}
+	
+	git ls-remote --exit-code "https://github.com/${GITHUB_USER}/${REPO}.git" ${REF} > /dev/null
+	if [ 0 -ne $? ]; then
+		warn "### https://github.com/${GITHUB_USER}/${REPO}.git does not contain ${REF} using master"
+		REF=master
+	fi
+
+	if [ -e $DIR ]; then
+		msg "### Updating ${REPO} version ${REF} from ${GITHUB_USER}"
 		cd $DIR
 		# Add the new remote if needed 
 		git remote show | grep ${GITHUB_USER}  > /dev/null || git remote add ${GITHUB_USER} "https://github.com/${GITHUB_USER}/${REPO}.git" || abort
 		git fetch ${GITHUB_USER} || abort
-		git tag | grep $VERSION > /dev/null
+		git tag | grep ${REF} > /dev/null
 		if [ $? -eq 0 ]; then 
-			git checkout $VERSION || abort
+			git checkout ${REF} || abort
 		else
 			git config user.name "DLNA HTML5 Test Tool Installer"
 			git config user.email "htt@dlna.org"
-			git merge ${GITHUB_USER}/$VERSION -m "Merge remote-tracking branch '${GITHUB_USER}/$VERSION'"
+			git merge ${GITHUB_USER}/${REF} -m "Merge remote-tracking branch '${GITHUB_USER}/${REF}'"
 		fi
 	else
-		msg "### Installing ${REPO} version ${VERSION} from ${GITHUB_USER}"
-		git clone --origin ${GITHUB_USER} --branch $VERSION "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
+		msg "### Installing ${REPO} version ${REF} from ${GITHUB_USER}"
+		git clone --origin ${GITHUB_USER} --branch ${REF} "https://github.com/${GITHUB_USER}/${REPO}.git" $DIR || abort
 	fi
 	if [ -e $DIR/.gitmodules ]; then
 		cd $DIR
@@ -327,7 +335,7 @@ fi
 
 msg "### Installing HTML5_Test_Suite_Server_Support version $VERSION"
 cd $TEMP_DIR
-git clone --branch $VERSION "https://github.com/${GITHUB_USER}/HTML5_Test_Suite_Server_Support.git" || abort
+git-update $TEMP_DIR/HTML5_Test_Suite_Server_Support HTML5_Test_Suite_Server_Support
 
 if [ 1 -eq ${INSTALL_NETWORK} ]; then 
 	# Set up the network
