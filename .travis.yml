@@ -34,6 +34,10 @@ env:
       HTT_VERSIONS="Release_2016.03.11_Alpha master"
     - HTT_OS_VERSION=16.04
       HTT_VERSIONS="master"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="drm_tests"
+    - HTT_OS_VERSION=16.04
+      HTT_VERSIONS="master drm_tests"
 
 install:
     - docker pull ubuntu:14.04
