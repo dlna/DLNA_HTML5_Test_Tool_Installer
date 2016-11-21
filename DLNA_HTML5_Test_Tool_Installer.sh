@@ -141,7 +141,7 @@ source /etc/lsb-release
 
 if [ "$DISTRIB_ID" != "Ubuntu" -o \( "$DISTRIB_RELEASE" != "14.04" -a "$DISTRIB_RELEASE" != "16.04" \) ]; then
 	# This is not ideal but will do for a first version
-	error "This script only supports Ubuntu 14.04, found $DISTRIB_ID $DISTRIB_RELEASE"
+	error "This script only supports Ubuntu 14.04 or 16.04, found $DISTRIB_ID $DISTRIB_RELEASE"
 fi
 
 # NOTE: This requires GNU getopt.
